@@ -74,7 +74,7 @@ Sources = {
 }
 ```
 
-Use `Fetch`, `ReadFile`, `WriteFile`, and `MakeFolder` adapters outside executor environments. Raw `Data` sources do not need filesystem or HTTP functions.
+Most executors work as-is. Other Luau environments can pass their own HTTP and file functions, or provide the font directly through `Data`.
 
 ## Files
 

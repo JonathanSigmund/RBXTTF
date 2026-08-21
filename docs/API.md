@@ -16,13 +16,9 @@ local Fonts = createFonts({ Sources = { FONT_ZIP_URL } })
 | `Sources` | required | ZIP and TTF descriptors, URLs, paths, or raw strings |
 | `Family` | largest family | Initial family name |
 | `DefaultWeight` | `400` | Weight used when none is supplied |
-| `FontDir` | `fonts` | Cache and extracted-face directory |
-| `Include` | `nil` | String, list, or function used to include ZIP entries |
-| `Exclude` | `nil` | String, list, or function used to exclude ZIP entries |
-| `Fetch` | executor HTTP | `function(url) -> string` adapter |
-| `ReadFile` | `readfile` | `function(path) -> string` adapter |
-| `WriteFile` | `writefile` | `function(path, data)` adapter |
-| `MakeFolder` | `makefolder` | `function(path)` adapter |
+| `FontDir` | `fonts` | Where downloaded and extracted fonts are cached |
+| `Include` | `nil` | Only scan matching files inside a ZIP |
+| `Exclude` | `nil` | Skip matching files inside a ZIP |
 | `Supersample` | `4` | Raster supersampling level |
 | `CurveSteps` | `6` | Minimum quadratic-curve subdivision |
 | `Kerning` | `true` | Set to `false` to disable kerning |
@@ -33,6 +29,8 @@ local Fonts = createFonts({ Sources = { FONT_ZIP_URL } })
 | `MaxRunCacheEntries` | `1024` | Coverage-run cache limit |
 
 `Source`, `ZipUrl`, and `ZipPath` are accepted as shortcuts.
+
+Most executors work without any extra setup. If yours uses different names for HTTP or file functions, you can pass `Fetch`, `ReadFile`, `WriteFile`, and `MakeFolder` yourself.
 
 ## Family methods
 
