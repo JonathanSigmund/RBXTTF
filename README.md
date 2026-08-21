@@ -1,94 +1,78 @@
 # RBXTTF
 
-RBXTTF parses and renders TrueType fonts in Luau. It accepts individual TTF files or whole ZIP archives and discovers families, weights, and styles from the fonts themselves.
+TTF parser and renderer for Roblox/Luau.
 
-The library started as the custom text renderer used by Atmosphere UI. It is now packaged independently for executor UIs, Roblox tooling, and any Luau environment that can provide raw font bytes.
+It reads standalone TTF files and ZIP archives. ZIP entries are matched using the font's internal metadata, not filenames.
 
-## Features
-
-- TrueType `glyf` outlines with simple and compound glyphs
-- Unicode `cmap` formats 4 and 12
-- Legacy `kern` and GPOS pair positioning
-- Supersampled antialiasing and cached raster output
-- Stored and DEFLATE-compressed ZIP archives
-- Automatic family, weight, italic, and oblique discovery
-- Arbitrary OpenType weights from 1 through 1000
-- Mixed ZIP, URL, file, and raw-data sources
-- Retained Drawing handles, GUI coverage runs, and transparent PNG output
-- One-file loadstring build
-
-## Quick Start
+## Load
 
 ```lua
 local Fonts = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/TwisstedToast/RBXTTF/main/dist/RBXTTF.lua"
 ))()({
     Sources = {
-        "https://example.com/MyFontFamily.zip",
-        "https://example.com/MyFontFamily-Italic.ttf",
+        "https://example.com/family.zip",
+        "https://example.com/extra-face.ttf",
     },
 })
-
-print(Fonts:GetFamily())
-
-local title = Fonts:CreateText("Hello", 18, 40, 40, {
-    Weight = 650,
-    Color = Color3.fromRGB(255, 255, 255),
-})
-
-title:MoveTo(80, 60)
 ```
 
-No archive path, filename prefix, or exact font filename is required. `650` selects the nearest discovered face.
+The repository is private, so the raw GitHub URL only works with authentication. Host the bundle somewhere your script can access or load it from disk.
 
-## Selecting Families
-
-Some archives contain more than one family. Set `Family`, or switch later:
+## Use
 
 ```lua
-local Fonts = loadstring(game:HttpGet(RBXTTF_URL))()({
-    Sources = { "https://example.com/collection.zip" },
-    Family = "Inter Display",
+local text = Fonts:CreateText("Hello", 18, 40, 40, {
+    Weight = 600,
+    Color = Color3.new(1, 1, 1),
 })
 
-for _, family in ipairs(Fonts:Families()) do
-    print(family.Name, family.Count)
-end
-
-Fonts:SetFamily("Inter")
+text:MoveTo(80, 60)
+text:SetAlpha(0.5)
+text:Destroy()
 ```
 
-When `Family` is omitted, RBXTTF chooses the family with the most discovered faces.
+Weights can be numeric or named. If the exact weight is missing, the closest face is used.
 
-## Source Formats
+```lua
+Fonts:Get(475)
+Fonts:Get("SemiBold")
+Fonts:Get(700, { Italic = true })
+```
+
+## Sources
 
 ```lua
 Sources = {
     "https://example.com/family.zip",
-    { Url = "https://example.com/standalone.ttf" },
-    { Path = "fonts/local-face.ttf" },
-    { Data = rawTtfBytes },
-
-    -- Optional overrides for incomplete or unusual metadata.
-    { Path = "custom.ttf", Family = "Custom", Weight = 475, Italic = true },
+    { Url = "https://example.com/font.ttf" },
+    { Path = "fonts/font.ttf" },
+    { Data = rawTtf },
+    { Path = "odd-font.ttf", Family = "My Font", Weight = 475 },
 }
 ```
 
-Most executors work as-is. Other Luau environments can pass their own HTTP and file functions, or provide the font directly through `Data`.
+Use `Family` when a ZIP contains multiple families.
+
+```lua
+local Fonts = createFonts({
+    Sources = { "collection.zip" },
+    Family = "Inter",
+})
+```
 
 ## Files
 
-- `dist/RBXTTF.lua` — bundled build for one loadstring
-- `src/RBXTTF.lua` — one-face parser and renderer
-- `src/RBXTTFFamily.lua` — ZIP loading, metadata discovery, and face selection
-- `docs/API.md` — complete public API
-- `docs/ARCHITECTURE.md` — parser, cache, and source pipeline
-- `examples/` — Drawing and GUI-run examples
+- `dist/RBXTTF.lua`: bundled version
+- `src/RBXTTF.lua`: TTF parser and renderer
+- `src/RBXTTFFamily.lua`: ZIP loader and family selection
+- `docs/API.md`: API
+- `docs/ARCHITECTURE.md`: internals
 
-## Compatibility
+## Limits
 
-RBXTTF supports TrueType-flavored fonts containing `glyf` and `loca` tables. CFF/CFF2 outlines, WOFF/WOFF2, variable-axis interpolation, hinting, GSUB substitutions, and complex-script shaping are not currently implemented.
+Supported: TrueType `glyf` outlines, cmap 4/12, compound glyphs, legacy kern, GPOS pair positioning, stored ZIP entries, and DEFLATE ZIP entries.
 
-## License
+Not supported: CFF/CFF2, WOFF/WOFF2, variable-axis interpolation, hinting, GSUB, or complex-script shaping.
 
-MIT
+MIT license.
