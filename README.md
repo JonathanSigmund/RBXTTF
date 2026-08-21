@@ -17,8 +17,6 @@ local Fonts = loadstring(game:HttpGet(
 })
 ```
 
-The repository is private, so the raw GitHub URL only works with authentication. Host the bundle somewhere your script can access or load it from disk.
-
 ## Use
 
 ```lua
