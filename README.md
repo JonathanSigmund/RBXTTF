@@ -8,7 +8,7 @@ It reads standalone TTF files and ZIP archives.
 
 ```lua
 local Fonts = loadstring(game:HttpGet(
-    "https://raw.githubusercontent.com/TwisstedToast/RBXTTF/main/dist/RBXTTF.lua"
+    "https://raw.githubusercontent.com/JonathanSigmund/RBXTTF/main/dist/RBXTTF.lua"
 ))()({
     Sources = {
         "https://example.com/family.zip",
