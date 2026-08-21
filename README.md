@@ -1,8 +1,12 @@
 # RBXTTF
 
-TTF parser and renderer for Roblox/Luau.
+TTF rendering for Roblox Luau.
+Useful for :
+UI Libraries
+Game UI?
+That's all that i think it can be used for.
 
-It reads standalone TTF files and ZIP archives. ZIP entries are matched using the font's internal metadata, not filenames.
+It reads standalone TTF files and ZIP archives.
 
 ## Load
 
