@@ -75,4 +75,13 @@ Supported: TrueType `glyf` outlines, cmap 4/12, compound glyphs, legacy kern, GP
 
 Not supported: CFF/CFF2, WOFF/WOFF2, variable-axis interpolation, hinting, GSUB, or complex-script shaping.
 
+## Test
+
+```bash
+python3 tests/mass_test.py /path/to/fonts
+python3 tests/mass_test.py --google 500
+```
+
+Results are written to `tests/mass-results.json`. Each font runs in its own process with a timeout.
+
 MIT license.
