@@ -1,10 +1,6 @@
 # RBXTTF
 
 TTF rendering for Roblox Luau.
-Useful for :
-UI Libraries
-Game UI?
-That's all that i think it can be used for.
 
 It reads standalone TTF files and ZIP archives.
 
