@@ -133,4 +133,6 @@ Each font runs in an isolated process with a timeout. Results are written to `te
 
 [MIT](LICENSE)
 
-Competing with @runtimelul's font renderer because why not
+
+## Info specifically at the end of the MD file
+This is a successor to [RFont](https://github.com/Runtimelul/RFont)
