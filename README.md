@@ -132,3 +132,5 @@ Each font runs in an isolated process with a timeout. Results are written to `te
 ## License
 
 [MIT](LICENSE)
+
+Competing with @runtimelul's font renderer because why not
