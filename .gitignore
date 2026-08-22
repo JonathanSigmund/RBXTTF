@@ -1,7 +1,0 @@
-.DS_Store
-fonts/
-*.dat
-tests/.tmp/
-tests/.font-corpus/
-tests/mass-results.json
-tests/__pycache__/
