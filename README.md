@@ -118,16 +118,6 @@ See [`docs/API.md`](docs/API.md) for the complete API and [`docs/ARCHITECTURE.md
 | `src/RBXTTF.lua` | TrueType parser and renderer |
 | `src/RBXTTFFamily.lua` | ZIP loading and face selection |
 | `examples/` | Usage examples |
-| `tests/` | Compatibility and regression tests |
-
-## Testing
-
-```bash
-python3 tests/mass_test.py /path/to/fonts
-python3 tests/mass_test.py --google 500
-```
-
-Each font runs in an isolated process with a timeout. Results are written to `tests/mass-results.json`.
 
 ## License
 
