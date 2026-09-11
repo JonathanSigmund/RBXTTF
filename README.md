@@ -117,7 +117,6 @@ See [`docs/API.md`](docs/API.md) for the complete API and [`docs/ARCHITECTURE.md
 | `dist/RBXTTF.lua` | Bundled loadstring build |
 | `src/RBXTTF.lua` | TrueType parser and renderer |
 | `src/RBXTTFFamily.lua` | ZIP loading and face selection |
-| `examples/` | Usage examples |
 
 ## License
 
