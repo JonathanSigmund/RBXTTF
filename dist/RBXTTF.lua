@@ -48,7 +48,6 @@ return function(config)
 
     local fontData, fontLabel = resolveFontData()
     assert(fontData and #fontData > 0, "RBXTTF: failed to read " .. tostring(fontLabel))
-    -- Center-alignment bias (fraction of size, positive = lower): the font ascender (1005/1000) exceeds capHeight (710/1000), so full line-box centering sits too high
     local centerBias = config.CenterBias or 0
     -- Global Y correction (device px, positive = move text DOWN): compensates for
     -- executor coordinate-space mismatches between Drawing and GUI AbsolutePosition
@@ -69,7 +68,7 @@ return function(config)
     for i = 0, numTables - 1 do
         local rec = 12 + i * 16
         local tag = string.sub(fontData, rec + 1, rec + 4)
-        tables[tag] = { off = u32(rec + 8) }
+        tables[tag] = { off = u32(rec + 8), length = u32(rec + 12) }
     end
 
     assert(tables["head"] and tables["maxp"] and tables["hhea"] and tables["hmtx"] and tables["loca"] and tables["glyf"] and tables["cmap"], "missing required TTF tables")
@@ -77,8 +76,29 @@ return function(config)
     local unitsPerEm = u16(tables["head"].off + 18)
     local indexToLocFormat = i16(tables["head"].off + 50)
     local numGlyphs = u16(tables["maxp"].off + 4)
-    local ascender = i16(tables["hhea"].off + 4)
-    local descender = i16(tables["hhea"].off + 6)
+    local hheaAscender = i16(tables["hhea"].off + 4)
+    local hheaDescender = i16(tables["hhea"].off + 6)
+    local hheaLineGap = i16(tables["hhea"].off + 8)
+    local ascender = hheaAscender
+    local descender = hheaDescender
+    local lineGap = hheaLineGap
+    local capHeight
+    local xHeight
+    local os2 = tables["OS/2"]
+    if os2 and os2.length >= 74 then
+        local fsSelection = os2.length >= 64 and u16(os2.off + 62) or 0
+        local useTypoMetrics = math.floor(fsSelection / 128) % 2 == 1
+        if useTypoMetrics then
+            ascender = i16(os2.off + 68)
+            descender = i16(os2.off + 70)
+            lineGap = i16(os2.off + 72)
+        end
+        local version = u16(os2.off)
+        if version >= 2 and os2.length >= 90 then
+            xHeight = i16(os2.off + 86)
+            capHeight = i16(os2.off + 88)
+        end
+    end
     local numberOfHMetrics = u16(tables["hhea"].off + 34)
 
     -- hmtx
@@ -728,7 +748,7 @@ return function(config)
 
     -- ---------- cached supersampled raster runs ----------
     local SS = math.max(2, math.floor(config.Supersample or 4))
-    local MIN_ALPHA = config.MinAlpha or 0.12
+    local MIN_ALPHA = math.clamp(tonumber(config.MinAlpha) or 0.12, 0, 1)
     local CURVE_STEPS = math.max(4, math.floor(config.CurveSteps or 6))
     local SCALE_QUANTIZATION = config.ScaleQuantization
     if SCALE_QUANTIZATION == nil then SCALE_QUANTIZATION = 64 end
@@ -790,13 +810,15 @@ return function(config)
         end
     end
 
-    local function rasterizeGlyph(gid, requestedScale, emboldenUnits)
+    local function rasterizeGlyph(gid, requestedScale, emboldenUnits, phaseX, phaseY)
         local quantizedScale = requestedScale
         if SCALE_QUANTIZATION then
             quantizedScale = math.floor(requestedScale * SCALE_QUANTIZATION + 0.5) / SCALE_QUANTIZATION
         end
+        phaseX = math.clamp(math.floor(tonumber(phaseX) or 0), 0, SS - 1)
+        phaseY = math.clamp(math.floor(tonumber(phaseY) or 0), 0, SS - 1)
         local boldKey = math.floor((emboldenUnits or 0) * 16 + 0.5)
-        local cacheKey = tostring(gid) .. ":" .. tostring(quantizedScale) .. ":" .. tostring(boldKey)
+        local cacheKey = table.concat({ gid, quantizedScale, boldKey, phaseX, phaseY }, ":")
         local cached = glyphCache[cacheKey]
         if cached ~= nil then
             stats.GlyphCacheHits = stats.GlyphCacheHits + 1
@@ -827,10 +849,12 @@ return function(config)
             end
         end
 
-        local gridMinX = math.floor((minX * quantizedScale) / SS) * SS
-        local gridMaxX = math.ceil((maxX * quantizedScale) / SS) * SS
-        local gridMinY = math.floor((minY * quantizedScale) / SS) * SS
-        local gridMaxY = math.ceil((maxY * quantizedScale) / SS) * SS
+        local sampleShiftX = phaseX
+        local sampleShiftY = -phaseY
+        local gridMinX = math.floor((minX * quantizedScale + sampleShiftX) / SS) * SS
+        local gridMaxX = math.ceil((maxX * quantizedScale + sampleShiftX) / SS) * SS
+        local gridMinY = math.floor((minY * quantizedScale + sampleShiftY) / SS) * SS
+        local gridMaxY = math.ceil((maxY * quantizedScale + sampleShiftY) / SS) * SS
         local width, height = gridMaxX - gridMinX, gridMaxY - gridMinY
         if width <= 0 or height <= 0 then
             cacheGlyph(cacheKey, false)
@@ -842,15 +866,16 @@ return function(config)
             for pointIndex = 1, #polygon do
                 local nextIndex = pointIndex % #polygon + 1
                 edges[#edges + 1] = {
-                    polygon[pointIndex][1] * quantizedScale - gridMinX,
-                    polygon[pointIndex][2] * quantizedScale - gridMinY,
-                    polygon[nextIndex][1] * quantizedScale - gridMinX,
-                    polygon[nextIndex][2] * quantizedScale - gridMinY,
+                    polygon[pointIndex][1] * quantizedScale + sampleShiftX - gridMinX,
+                    polygon[pointIndex][2] * quantizedScale + sampleShiftY - gridMinY,
+                    polygon[nextIndex][1] * quantizedScale + sampleShiftX - gridMinX,
+                    polygon[nextIndex][2] * quantizedScale + sampleShiftY - gridMinY,
                 }
             end
         end
 
         local supersampleArea = SS * SS
+        local minCoverageSamples = math.max(1, math.ceil(MIN_ALPHA * supersampleArea - 1e-9))
         local outputWidth, outputHeight = width / SS, height / SS
         local sampleRows = {}
         for sampleY = 0, height - 1 do
@@ -902,7 +927,7 @@ return function(config)
                     end
                 end
 
-                if coverage / supersampleArea >= MIN_ALPHA then
+                if coverage >= minCoverageSamples then
                     if runX and pixelX == runLastX + 1 and coverage == runCoverage then
                         runLastX = pixelX
                     else
@@ -952,6 +977,9 @@ return function(config)
     Font.UnitsPerEm = unitsPerEm
     Font.Ascender = ascender
     Font.Descender = descender
+    Font.LineGap = lineGap
+    Font.CapHeight = capHeight
+    Font.XHeight = xHeight
     Font.NumGlyphs = numGlyphs
     Font.Supersample = SS
     Font.SupportsUnicode = #cmap12Groups > 0
@@ -998,17 +1026,34 @@ return function(config)
         square.Visible = visible
     end
 
-    local function resolveBaseline(originY, size, vAlign, boxHeight)
+    local function metricBaseline(size, vAlign, boxHeight)
         local scale = size / unitsPerEm
+        local lineHeight = (ascender - descender + lineGap) * scale
+        local height = boxHeight or lineHeight
+        local baseline
         if vAlign == "Top" then
-            return originY + ascender * scale + yOffset
+            baseline = ascender * scale + lineGap * scale * 0.5
         elseif vAlign == "Center" then
-            local lineH = (ascender - descender) * scale
-            return originY + (boxHeight or lineH) / 2 + ascender * scale - lineH / 2 + centerBias * size + yOffset
+            baseline = height * 0.5 + (ascender + descender) * scale * 0.5 + centerBias * size
         elseif vAlign == "Bottom" then
-            return originY + (boxHeight or (ascender - descender) * scale) + descender * scale + yOffset
+            baseline = height + descender * scale - lineGap * scale * 0.5
+        else
+            baseline = 0
         end
-        return originY + yOffset
+        return baseline
+    end
+
+    local function resolveBaseline(originY, size, vAlign, boxHeight)
+        return originY + metricBaseline(size, vAlign, boxHeight) + yOffset
+    end
+
+    local function splitSubpixel(value)
+        local integer = math.floor(value)
+        local phase = math.floor((value - integer) * SS + 0.5)
+        if phase >= SS then
+            return integer + 1, 0
+        end
+        return integer, phase
     end
 
     local function cacheLayout(key, layout)
@@ -1218,22 +1263,16 @@ return function(config)
             originX = width - layout.width
         end
 
-        local lineHeight = (ascender - descender) * layout.scale
-        local baseline
-        if vAlign == "Top" then
-            baseline = ascender * layout.scale
-        elseif vAlign == "Bottom" then
-            baseline = height + descender * layout.scale
-        else
-            baseline = height / 2 + ascender * layout.scale - lineHeight / 2 + centerBias * size
-        end
+        local baseline = metricBaseline(size, vAlign, height)
 
         local runs = {}
         for _, glyph in ipairs(layout.glyphs) do
-            local raster = rasterizeGlyph(glyph.gid, layout.supersampleScale, layout.emboldenUnits)
+            local glyphPixelX, phaseX = splitSubpixel(originX + glyph.x)
+            local baselinePixelY, phaseY = splitSubpixel(baseline)
+            local raster = rasterizeGlyph(glyph.gid, layout.supersampleScale, layout.emboldenUnits, phaseX, phaseY)
             if raster then
-                local left = math.floor(originX + glyph.x + raster.gridMinX / SS + 0.5)
-                local basePixelY = math.floor(baseline - raster.gridMinY / SS + 0.5)
+                local left = glyphPixelX + raster.gridMinX / SS
+                local basePixelY = baselinePixelY - raster.gridMinY / SS
                 for _, run in ipairs(raster.runs) do
                     local firstX = math.max(0, left + run.x)
                     local lastX = math.min(width - 1, left + run.x + run.width - 1)
@@ -1313,10 +1352,12 @@ return function(config)
         local baseY = resolveBaseline(originY, size, opts.VAlign, opts.BoxHeight)
 
         for _, glyph in ipairs(layout.glyphs) do
-            local raster = rasterizeGlyph(glyph.gid, layout.supersampleScale, layout.emboldenUnits)
+            local glyphPixelX, phaseX = splitSubpixel(originX + glyph.x)
+            local baselinePixelY, phaseY = splitSubpixel(baseY)
+            local raster = rasterizeGlyph(glyph.gid, layout.supersampleScale, layout.emboldenUnits, phaseX, phaseY)
             if raster then
-                local left = math.floor(originX + glyph.x + raster.gridMinX / SS + 0.5)
-                local basePixelY = math.floor(baseY - raster.gridMinY / SS + 0.5)
+                local left = glyphPixelX + raster.gridMinX / SS
+                local basePixelY = baselinePixelY - raster.gridMinY / SS
                 for _, run in ipairs(raster.runs) do
                     emit(
                         left + run.x,
@@ -1355,6 +1396,9 @@ return function(config)
             UnitsPerEm = unitsPerEm,
             Ascender = ascender,
             Descender = descender,
+            LineGap = lineGap,
+            CapHeight = capHeight,
+            XHeight = xHeight,
             NumGlyphs = numGlyphs,
             Supersample = SS,
             SupportsUnicode = self.SupportsUnicode,
@@ -2571,11 +2615,3 @@ return function(config)
 end
 
 end)()
-
-return function(config)
-    local options = {}
-    for key, value in pairs(config or {}) do options[key] = value end
-    options.Renderer = options.Renderer or createRenderer
-    return createFamily(options)
-end
-
